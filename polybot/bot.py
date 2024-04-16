@@ -110,31 +110,41 @@ class ObjectDetectionBot(Bot):
             image_name = f"{msg['photo'][-1]['file_unique_id']}.jpg"
             self.upload_photo_to_s3(photo_path, self.aws_bucket, image_name)
             
-            logger.info(f'IM HERE AFTER UPLAOD!!!!')
+            logger.info(f'FROM BOT: IMAGE UPLOADED SUCCESSFULY!')
             # TODO send a request to the `yolo5` service for prediction
             URL = f"http://{self.yolo_ip_addr}:8081/predict"
 
             PARAMS = {'imgName' : image_name}
                         
             time_out = 15
-  
-            response = requests.post(URL, params=PARAMS, timeout=time_out)
             
-            if response.status_code == 200:
-                logger.info('REQUEST SENT SUCCESSFULY!!!!')
-                data = response.json()
-               
-                logger.info('TRYING TO PARSE DATA TO JSON!!!!')
-                
-                objects_in_photo = self.formated_msg(data['labels'])
-                
-                res = ""
-                for i in objects_in_photo:
-                    res += f'{i}: {objects_in_photo[i]}\n' 
-                
-                self.send_text(msg['chat']['id'], f'{res}')
+            i = 3
+            while i != 0:
+                try:
+                    response = requests.post(URL, params=PARAMS, timeout=time_out)
+                    if response.status_code == 200:
+                        logger.info('FROM BOT: REQUEST SENT TO YOLO SERVICE SUCCESSFULY!')
+                        data = response.json()
+
+                        logger.info('TRYING TO PARSE PREDICTED DATA TO JSON!')
+                        
+                        objects_in_photo = self.formated_msg(data['labels'])
+                        
+                        res = ""
+                        for i in objects_in_photo:
+                            res += f'{i}: {objects_in_photo[i]}\n' 
+                        
+                        self.send_text(msg['chat']['id'], f'Detected objects: \n{res}')
+                    break
+                except Exception as e:
+                    i -= 1
+                    logger.info(f"Failed to connect to yolo service! Error: {e}")
+                    if i != 0 :
+                        logger.info("trying again ...")
 
             else:
-                logger.info('failed to send request')
+                logger.info('FAILED TO CONNECT TO YOLO SERVICE!')
             # TODO send results to the Telegram end-user
                 self.send_text(msg['chat']['id'], "Sorry somthing went wrong with our servers, pls try again.")
+        else:
+            self.send_text(msg['chat']['id'], "Sorry I can handle just messages as images!.")
